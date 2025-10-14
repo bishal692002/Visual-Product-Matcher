@@ -83,9 +83,21 @@ def find_similar_products(query_image, top_k=10):
     
     # Prepare results
     results = []
+    
+    # Normalize scores to 0-100% range using min-max scaling
+    # The closest item gets highest score, furthest gets lowest
+    max_score = max(scores) if len(scores) > 0 else 1
+    min_score = min(scores) if len(scores) > 0 else 0
+    score_range = max_score - min_score if max_score != min_score else 1
+    
     for i in range(len(retrieved_examples["image"])):
-        # Calculate similarity score
-        similarity_score = math.exp(-scores[i] / 20)
+        # Calculate similarity: invert and normalize so closest = 100%, furthest = lower
+        # Formula: 100 - ((distance - min) / (max - min) * 100)
+        normalized_distance = (scores[i] - min_score) / score_range
+        similarity_score = (1 - normalized_distance) * 100
+        
+        # Ensure it's in 0-100 range
+        similarity_score = max(0, min(100, similarity_score))
         
         # Get metadata
         file_name = retrieved_examples.get("file_name", [None])[i]
@@ -211,8 +223,7 @@ if image:
                         with cols[idx % 3]:
                             st.image(
                                 product["image"],
-                                width=None,
-                                use_column_width=True,
+                                use_container_width=True,
                                 caption=f"Match {idx + 1}"
                             )
                             
