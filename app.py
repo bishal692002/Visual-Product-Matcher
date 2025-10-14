@@ -2,24 +2,59 @@ import streamlit as st
 from PIL import Image
 import requests
 import io
-import base64
+import numpy as np
 from urllib.parse import urlparse
+import math
+import pandas as pd
+
+# Import ML libraries
+from datasets import load_dataset
+from transformers import AutoFeatureExtractor, AutoModel
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Visual Product Recommender",
+    page_title="Visual Product Matcher",
     page_icon="🛍️",
     layout="wide"
 )
 
-# --- FastAPI Backend URL ---
-# This is the address where your FastAPI backend is running.
-# If you are running both frontend and backend on the same machine, this is correct.
-BACKEND_URL = "http://127.0.0.1:8000/recommend/"
+# --- Initialize Session State ---
+@st.cache_resource
+def load_model_and_dataset():
+    """Load model and dataset once and cache them"""
+    with st.spinner("🔄 Loading AI model and product database..."):
+        # Load Vision Transformer model
+        MODEL_CKPT = 'google/vit-base-patch16-224'
+        extractor = AutoFeatureExtractor.from_pretrained(MODEL_CKPT)
+        model = AutoModel.from_pretrained(MODEL_CKPT)
+        
+        # Load embeddings dataset from HuggingFace
+        DATASET_REPO = "Gauravannad/fashion-products-embeddings"
+        dataset = load_dataset(DATASET_REPO, split="train")
+        
+        # Add FAISS index for fast similarity search
+        dataset.add_faiss_index(column="embeddings")
+        
+        # Load metadata
+        try:
+            metadata_df = pd.read_csv('./img/styles.csv', on_bad_lines='skip')
+        except:
+            metadata_df = None
+        
+        return extractor, model, dataset, metadata_df
+
+# Load everything
+extractor, model, dataset, metadata_df = load_model_and_dataset()
 
 # --- Helper Functions ---
+def extract_embeddings(image: Image.Image) -> np.ndarray:
+    """Convert image to embedding vector"""
+    image_pp = extractor(image.convert("RGB"), return_tensors="pt")
+    features = model(**image_pp).last_hidden_state[:, 0].detach().numpy()
+    return features.squeeze()
+
 def is_valid_url(url):
-    """Check if a string is a valid URL"""
+    """Check if string is valid URL"""
     try:
         result = urlparse(url)
         return all([result.scheme, result.netloc])
@@ -36,134 +71,180 @@ def load_image_from_url(url):
         st.error(f"Failed to load image from URL: {e}")
         return None
 
-# --- UI Components ---
-st.title("🛍️ Visual Product Recommender")
-st.markdown(
-    "Upload an image or provide a URL of a fashion product, and we'll show you similar items from our catalog!"
-)
+def find_similar_products(query_image, top_k=10):
+    """Find similar products using FAISS"""
+    # Extract embedding from query image
+    query_embedding = extract_embeddings(query_image)
+    
+    # Search in FAISS index
+    scores, retrieved_examples = dataset.get_nearest_examples(
+        "embeddings", query_embedding, k=top_k
+    )
+    
+    # Prepare results
+    results = []
+    for i in range(len(retrieved_examples["image"])):
+        # Calculate similarity score
+        similarity_score = math.exp(-scores[i] / 20)
+        
+        # Get metadata
+        file_name = retrieved_examples.get("file_name", [None])[i]
+        product_id = retrieved_examples.get("id", [None])[i]
+        
+        product_info = {
+            "image": retrieved_examples["image"][i],
+            "similarity_score": round(similarity_score * 100, 2),
+            "file_name": file_name,
+            "metadata": {}
+        }
+        
+        # Add metadata from CSV
+        if metadata_df is not None:
+            try:
+                product_row = None
+                if product_id is not None:
+                    product_row = metadata_df[metadata_df['id'] == product_id]
+                
+                # Try to extract ID from filename
+                if (product_row is None or product_row.empty) and file_name:
+                    import re
+                    match = re.search(r'(\d+)', str(file_name))
+                    if match:
+                        file_id = int(match.group(1))
+                        product_row = metadata_df[metadata_df['id'] == file_id]
+                
+                if product_row is not None and not product_row.empty:
+                    row = product_row.iloc[0]
+                    product_info["metadata"] = {
+                        "productDisplayName": row.get('productDisplayName', 'N/A'),
+                        "gender": row.get('gender', 'N/A'),
+                        "masterCategory": row.get('masterCategory', 'N/A'),
+                        "subCategory": row.get('subCategory', 'N/A'),
+                        "articleType": row.get('articleType', 'N/A'),
+                        "baseColour": row.get('baseColour', 'N/A'),
+                        "season": row.get('season', 'N/A'),
+                        "year": row.get('year', 'N/A'),
+                        "usage": row.get('usage', 'N/A')
+                    }
+            except Exception as e:
+                pass
+        
+        results.append(product_info)
+    
+    return results
 
-# Add input method selector
+# --- UI ---
+st.title("🛍️ Visual Product Matcher")
+st.markdown("Upload a fashion product image or provide a URL to find similar items!")
+
+# Input method selector
 input_method = st.radio("Choose input method:", ["Upload Image", "Image URL"], horizontal=True)
 
 uploaded_file = None
 image = None
-image_bytes = None
 
 if input_method == "Upload Image":
-    # File uploader allows user to upload an image
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
+    uploaded_file = st.file_uploader(
+        "Choose an image file",
+        type=["jpg", "jpeg", "png"],
+        help="Upload a product image to find similar items"
+    )
+    if uploaded_file:
         image = Image.open(uploaded_file)
-        image_bytes = uploaded_file.getvalue()
 else:
-    # URL input
-    image_url = st.text_input("Enter image URL:", placeholder="https://example.com/image.jpg")
-    if image_url and is_valid_url(image_url):
-        image = load_image_from_url(image_url)
-        if image:
-            # Convert PIL image to bytes
-            buf = io.BytesIO()
-            image.save(buf, format='JPEG')
-            image_bytes = buf.getvalue()
-    elif image_url:
-        st.error("Please enter a valid URL")
+    image_url = st.text_input(
+        "Enter image URL:",
+        placeholder="https://example.com/product.jpg",
+        help="Paste a direct link to a product image"
+    )
+    if image_url:
+        if is_valid_url(image_url):
+            image = load_image_from_url(image_url)
+        else:
+            st.error("Please enter a valid URL")
 
-if image is not None:
-    # Display the uploaded/loaded image
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image(image, caption='Your Uploaded Image', width=300)
-
-    st.divider()
-    
-    # Add similarity filter slider
-    st.subheader("Filter Options")
+# Filters
+col1, col2 = st.columns(2)
+with col1:
     min_similarity = st.slider(
-        "Minimum Similarity Score (%)",
+        "Minimum Similarity (%)",
         min_value=0,
         max_value=100,
         value=0,
         step=5,
-        help="Filter results to show only products above this similarity threshold"
+        help="Filter results by similarity score"
     )
-    
-    # Number of results to display
+with col2:
     num_results = st.slider(
         "Number of Results",
         min_value=3,
         max_value=10,
         value=6,
-        step=1
+        step=1,
+        help="How many similar products to display"
     )
 
-    # When the user clicks the button, send the image to the backend
-    if st.button('Find Similar Products', use_container_width=True, type="primary"):
-        with st.spinner('AI is searching for recommendations...'):
+# Display uploaded image
+if image:
+    st.subheader("📸 Your Image")
+    st.image(image, width=300, caption="Input Image")
+    
+    # Find similar products button
+    if st.button("🔍 Find Similar Products", type="primary"):
+        with st.spinner("🔄 Searching for similar products..."):
             try:
-                # Prepare the image file to be sent in the request
-                files = {'file': ('image.jpg', image_bytes, 'image/jpeg')}
+                # Find similar products
+                results = find_similar_products(image, top_k=10)
                 
-                # Make a POST request to the FastAPI backend
-                response = requests.post(BACKEND_URL, files=files, timeout=30)
+                # Filter by similarity threshold
+                filtered_results = [
+                    r for r in results 
+                    if r["similarity_score"] >= min_similarity
+                ][:num_results]
                 
-                # Check if the request was successful
-                if response.status_code == 200:
-                    data = response.json()
-                    recommendations = data.get("recommendations", [])
+                if filtered_results:
+                    st.success(f"✅ Found {len(filtered_results)} similar products!")
                     
-                    # Filter recommendations by similarity score
-                    filtered_recommendations = [
-                        rec for rec in recommendations 
-                        if rec.get("similarity_score", 0) >= min_similarity
-                    ]
-                    
-                    # Limit to requested number of results
-                    filtered_recommendations = filtered_recommendations[:num_results]
-                    
-                    if len(filtered_recommendations) == 0:
-                        st.warning(f"No products found with similarity score >= {min_similarity}%. Try lowering the threshold.")
-                    else:
-                        st.success(f"Found {len(filtered_recommendations)} similar products!")
-                        
-                        # Display the recommended images in a grid
-                        # Use columns based on number of results
-                        cols_per_row = min(3, len(filtered_recommendations))
-                        
-                        for idx in range(0, len(filtered_recommendations), cols_per_row):
-                            cols = st.columns(cols_per_row)
-                            for col_idx, col in enumerate(cols):
-                                rec_idx = idx + col_idx
-                                if rec_idx < len(filtered_recommendations):
-                                    rec = filtered_recommendations[rec_idx]
-                                    
-                                    with col:
-                                        # Decode the Base64 string back into an image
-                                        rec_image = Image.open(io.BytesIO(base64.b64decode(rec["image"])))
-                                        st.image(rec_image, use_container_width=True)
-                                        
-                                        # Display similarity score
-                                        st.metric("Similarity", f"{rec.get('similarity_score', 0)}%")
-                                        
-                                        # Display product metadata if available
-                                        if "product_name" in rec:
-                                            st.caption(f"**{rec['product_name']}**")
-                                        
-                                        with st.expander("Product Details"):
-                                            if "category" in rec:
-                                                st.write(f"**Category:** {rec['category']}")
-                                            if "sub_category" in rec:
-                                                st.write(f"**Type:** {rec['sub_category']}")
-                                            if "article_type" in rec:
-                                                st.write(f"**Article:** {rec['article_type']}")
-                                            if "color" in rec:
-                                                st.write(f"**Color:** {rec['color']}")
-                                            if "gender" in rec:
-                                                st.write(f"**Gender:** {rec['gender']}")
+                    # Display results in grid
+                    cols = st.columns(3)
+                    for idx, product in enumerate(filtered_results):
+                        with cols[idx % 3]:
+                            st.image(
+                                product["image"],
+                                width=None,
+                                use_container_width=True,
+                                caption=f"Match {idx + 1}"
+                            )
+                            
+                            # Similarity score with color
+                            score = product["similarity_score"]
+                            if score >= 80:
+                                color = "🟢"
+                            elif score >= 60:
+                                color = "🟡"
+                            else:
+                                color = "🔴"
+                            
+                            st.markdown(f"**{color} Similarity: {score}%**")
+                            
+                            # Show metadata if available
+                            if product["metadata"]:
+                                meta = product["metadata"]
+                                if meta.get("productDisplayName", "N/A") != "N/A":
+                                    st.markdown(f"**{meta['productDisplayName']}**")
+                                
+                                with st.expander("📋 View Details"):
+                                    st.write(f"**Category:** {meta.get('masterCategory', 'N/A')}")
+                                    st.write(f"**Type:** {meta.get('articleType', 'N/A')}")
+                                    st.write(f"**Color:** {meta.get('baseColour', 'N/A')}")
+                                    st.write(f"**Gender:** {meta.get('gender', 'N/A')}")
+                                    st.write(f"**Season:** {meta.get('season', 'N/A')}")
                 else:
-                    st.error(f"Error: Could not get recommendations. Server responded with status {response.status_code}")
-                    st.error(f"Details: {response.text}")
+                    st.warning(f"No products found with similarity >= {min_similarity}%. Try lowering the threshold.")
+                    
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
 
-            except requests.exceptions.RequestException as e:
-                st.error(f"Could not connect to the backend. Please ensure the FastAPI server is running.")
-                st.error(f"Error details: {e}")
-
+# Footer
+st.markdown("---")
+st.markdown("🚀 Powered by Vision Transformer (ViT) & FAISS")
