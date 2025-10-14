@@ -22,84 +22,237 @@ st.set_page_config(
 # Custom CSS for better UI
 st.markdown("""
     <style>
-    /* Main container styling */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Global Reset */
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    /* Main container */
     .main {
-        padding: 2rem;
+        padding: 3rem 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
     }
     
-    /* Title styling */
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Title styling - Elegant and minimal */
     h1 {
-        color: #FF6B6B;
+        font-size: 3.5rem !important;
+        font-weight: 300 !important;
+        letter-spacing: -0.02em;
+        color: #f9fafb !important;
         text-align: center;
-        font-size: 3rem !important;
-        font-weight: 700 !important;
         margin-bottom: 0.5rem !important;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        margin-top: 1rem !important;
     }
     
-    /* Subtitle styling */
+    /* Subtitle */
     .subtitle {
         text-align: center;
-        color: #666;
-        font-size: 1.2rem;
-        margin-bottom: 2rem;
+        color: #d1d5db;
+        font-size: 1.125rem;
+        font-weight: 400;
+        margin-bottom: 3rem;
+        line-height: 1.6;
     }
     
-    /* Card styling for results */
-    .product-card {
-        background: white;
-        border-radius: 15px;
-        padding: 1rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    /* Section headers */
+    h3 {
+        font-size: 1.125rem !important;
+        font-weight: 600 !important;
+        color: #f3f4f6 !important;
+        margin-top: 2.5rem !important;
+        margin-bottom: 1rem !important;
+        letter-spacing: -0.01em;
     }
     
-    .product-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+    /* Radio buttons - Minimal tabs style */
+    .stRadio > div {
+        background: #1f2937;
+        border-radius: 12px;
+        padding: 0.25rem;
+        display: inline-flex;
+        gap: 0.25rem;
     }
     
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 25px;
-        padding: 0.75rem 2rem;
-        font-size: 1.1rem;
-        font-weight: 600;
-        width: 100%;
+    .stRadio > div > label {
+        background: transparent;
+        border-radius: 8px;
+        padding: 0.625rem 1.25rem;
+        font-weight: 500;
+        font-size: 0.9375rem;
+        transition: all 0.2s ease;
+        color: #9ca3af;
+    }
+    
+    .stRadio > div > label:hover {
+        background: #374151;
+        color: #f9fafb;
+    }
+    
+    .stRadio > div > label[data-baseweb="radio"] > div:first-child {
+        background: #f9fafb;
+    }
+    
+    .stRadio > div > label > div[data-testid="stMarkdownContainer"] {
+        color: #f9fafb;
+    }
+    
+    /* File uploader */
+    .stFileUploader {
+        border: 2px dashed #4b5563;
+        border-radius: 16px;
+        padding: 2rem;
+        background: #1f2937;
         transition: all 0.3s ease;
     }
     
-    .stButton > button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    .stFileUploader:hover {
+        border-color: #6b7280;
+        background: #374151;
     }
     
-    /* File uploader styling */
-    .uploadedFile {
-        border-radius: 10px;
-        border: 2px dashed #667eea;
+    /* Text input */
+    .stTextInput > div > div > input {
+        border: 1.5px solid #4b5563;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        font-size: 0.9375rem;
+        transition: all 0.2s ease;
+        background: #1f2937;
+        color: #f9fafb;
     }
     
-    /* Slider styling */
+    .stTextInput > div > div > input:focus {
+        border-color: #9ca3af;
+        background: #374151;
+        box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+    }
+    
+    /* Sliders */
+    .stSlider {
+        padding: 1rem 0;
+    }
+    
+    .stSlider > div > div > div > div {
+        background: #f9fafb;
+    }
+    
     .stSlider > div > div > div {
-        background: linear-gradient(to right, #667eea, #764ba2);
+        background: #4b5563;
     }
     
-    /* Success message styling */
-    .element-container:has(>.stAlert) {
-        border-radius: 10px;
+    .stSlider label {
+        color: #f9fafb !important;
     }
     
-    /* Info box styling */
-    .info-box {
-        background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-        border-left: 4px solid #667eea;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
+    /* Button - Sophisticated design */
+    .stButton > button {
+        background: #f9fafb;
+        color: #1a1a1a;
+        border: none;
+        border-radius: 12px;
+        padding: 0.875rem 2rem;
+        font-size: 1rem;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    
+    .stButton > button:hover {
+        background: #ffffff;
+        box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+        transform: translateY(-1px);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0);
+    }
+    
+    /* Success/Error messages */
+    .stAlert {
+        border-radius: 12px;
+        border: none;
+        padding: 1rem 1.25rem;
+        font-size: 0.9375rem;
+    }
+    
+    /* Images */
+    .stImage {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    
+    /* Product grid */
+    [data-testid="column"] {
+        padding: 0.75rem;
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: #1f2937;
+        border-radius: 8px;
+        padding: 0.625rem 1rem;
+        font-weight: 500;
+        font-size: 0.875rem;
+        color: #d1d5db;
+    }
+    
+    /* Divider */
+    hr {
+        margin: 3rem 0;
+        border: none;
+        border-top: 1px solid #374151;
+    }
+    
+    /* Custom badge styling */
+    .badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        margin: 0.5rem 0;
+    }
+    
+    /* Spinner */
+    .stSpinner > div {
+        border-color: #f9fafb !important;
+    }
+    
+    /* File uploader text */
+    .stFileUploader label {
+        color: #f9fafb !important;
+    }
+    
+    .stFileUploader small {
+        color: #9ca3af !important;
+    }
+    
+    /* Text input labels */
+    .stTextInput label {
+        color: #f9fafb !important;
+    }
+    
+    /* Expander content */
+    .streamlit-expanderContent {
+        background: #1f2937;
+        color: #e5e7eb;
+    }
+    
+    .streamlit-expanderContent p {
+        color: #e5e7eb !important;
+    }
+    
+    .streamlit-expanderContent strong {
+        color: #f9fafb !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -232,18 +385,18 @@ def find_similar_products(query_image, top_k=10):
     return results
 
 # --- UI ---
-# Header with gradient
-st.markdown("<h1>🛍️ Visual Product Matcher</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Upload a fashion product image or provide a URL to find similar items using AI!</p>", unsafe_allow_html=True)
+# Header - Minimal and elegant
+st.markdown("<h1>Visual Product Matcher</h1>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Discover similar products using advanced AI technology</p>", unsafe_allow_html=True)
 
 # Add spacing
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Input method selector with better styling
-st.markdown("### 📤 Choose Your Input Method")
+# Input method selector - Clean tabs
+st.markdown("### Input Method")
 input_method = st.radio(
-    "",
-    ["📁 Upload Image", "🔗 Image URL"],
+    "Choose input method",
+    ["Upload Image", "Image URL"],
     horizontal=True,
     label_visibility="collapsed"
 )
@@ -251,69 +404,65 @@ input_method = st.radio(
 uploaded_file = None
 image = None
 
-if "📁" in input_method:
-    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
+if "Upload" in input_method:
     uploaded_file = st.file_uploader(
-        "📸 Choose an image file",
+        "Drop an image file here or click to browse",
         type=["jpg", "jpeg", "png"],
-        help="Upload a product image to find similar items"
+        help="Upload a fashion product image"
     )
-    st.markdown("</div>", unsafe_allow_html=True)
     if uploaded_file:
         image = Image.open(uploaded_file)
 else:
-    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
     image_url = st.text_input(
-        "🌐 Enter image URL:",
-        placeholder="https://example.com/product.jpg",
-        help="Paste a direct link to a product image"
+        "Enter image URL",
+        placeholder="https://example.com/image.jpg",
+        help="Paste a direct link to an image"
     )
-    st.markdown("</div>", unsafe_allow_html=True)
     if image_url:
         if is_valid_url(image_url):
             image = load_image_from_url(image_url)
         else:
             st.error("Please enter a valid URL")
 
-# Filters section with better design
+# Filters section
 st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("### ⚙️ Filter Settings")
+st.markdown("### Filters")
 
 col1, col2 = st.columns(2)
 with col1:
     min_similarity = st.slider(
-        "🎯 Minimum Similarity (%)",
+        "Minimum Similarity",
         min_value=0,
         max_value=100,
         value=0,
         step=5,
-        help="Filter results by similarity score"
+        help="Filter results by similarity percentage"
     )
 with col2:
     num_results = st.slider(
-        "📊 Number of Results",
+        "Results to Show",
         min_value=3,
         max_value=10,
         value=6,
         step=1,
-        help="How many similar products to display"
+        help="Number of similar products to display"
     )
 
 # Display uploaded image
 if image:
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 📸 Your Input Image")
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("### Your Image")
     
     # Center the image
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1.5, 1, 1.5])
     with col2:
-        st.image(image, use_container_width=True, caption="Input Image")
+        st.image(image, width=320)
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Find similar products button with custom styling
-    if st.button("🔍 Find Similar Products", type="primary", use_container_width=True):
-        with st.spinner("🔄 Analyzing image and searching for similar products..."):
+    # Search button
+    if st.button("Find Similar Products", type="primary", use_container_width=True):
+        with st.spinner("Analyzing image..."):
             try:
                 # Find similar products
                 results = find_similar_products(image, top_k=10)
@@ -325,9 +474,9 @@ if image:
                 ][:num_results]
                 
                 if filtered_results:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.success(f"✨ Found {len(filtered_results)} similar products!")
-                    st.markdown("### 🎯 Similar Products")
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    st.success(f"Found {len(filtered_results)} similar products")
+                    st.markdown("### Similar Products")
                     st.markdown("<br>", unsafe_allow_html=True)
                     
                     # Display results in grid
@@ -339,38 +488,40 @@ if image:
                                 use_container_width=True
                             )
                             
-                            # Similarity score with gradient badge
+                            # Similarity badge - minimal design
                             score = product["similarity_score"]
                             if score >= 80:
-                                badge_color = "#10b981"  # Green
-                                emoji = "🟢"
+                                badge_bg = "#f0fdf4"
+                                badge_text = "#166534"
                             elif score >= 60:
-                                badge_color = "#f59e0b"  # Yellow
-                                emoji = "🟡"
+                                badge_bg = "#fffbeb"
+                                badge_text = "#92400e"
                             else:
-                                badge_color = "#ef4444"  # Red
-                                emoji = "🔴"
+                                badge_bg = "#fef2f2"
+                                badge_text = "#991b1b"
                             
                             st.markdown(f"""
                                 <div style="
-                                    background: linear-gradient(135deg, {badge_color}22 0%, {badge_color}44 100%);
-                                    padding: 0.5rem;
-                                    border-radius: 10px;
+                                    background: {badge_bg};
+                                    color: {badge_text};
+                                    padding: 0.5rem 1rem;
+                                    border-radius: 8px;
                                     text-align: center;
-                                    margin: 0.5rem 0;
-                                    border-left: 4px solid {badge_color};
+                                    margin: 0.75rem 0;
+                                    font-weight: 500;
+                                    font-size: 0.875rem;
                                 ">
-                                    <strong>{emoji} Match {idx + 1}: {score}%</strong>
+                                    {score}% Match
                                 </div>
                             """, unsafe_allow_html=True)
                             
-                            # Show metadata if available
+                            # Product name
                             if product["metadata"]:
                                 meta = product["metadata"]
                                 if meta.get("productDisplayName", "N/A") != "N/A":
-                                    st.markdown(f"**🏷️ {meta['productDisplayName']}**")
+                                    st.markdown(f"<p style='font-weight: 500; font-size: 0.9375rem; color: #f9fafb; margin: 0.5rem 0;'>{meta['productDisplayName']}</p>", unsafe_allow_html=True)
                                 
-                                with st.expander("📋 View Full Details"):
+                                with st.expander("View Details"):
                                     st.markdown(f"**Category:** {meta.get('masterCategory', 'N/A')}")
                                     st.markdown(f"**Type:** {meta.get('articleType', 'N/A')}")
                                     st.markdown(f"**Color:** {meta.get('baseColour', 'N/A')}")
@@ -384,15 +535,13 @@ if image:
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
 
-# Footer with enhanced styling
-st.markdown("<br><br>", unsafe_allow_html=True)
+# Footer - Minimal
+st.markdown("<br><br><br>", unsafe_allow_html=True)
 st.markdown("---")
 st.markdown("""
-    <div style="text-align: center; padding: 2rem 0; color: #666;">
-        <h4>🚀 Powered by AI</h4>
-        <p>Vision Transformer (ViT) • FAISS • HuggingFace • Streamlit</p>
-        <p style="font-size: 0.9rem; margin-top: 1rem;">
-            Built with ❤️ for intelligent product discovery
+    <div style="text-align: center; padding: 2rem 0; color: #6b7280;">
+        <p style="font-size: 0.875rem; font-weight: 400;">
+            Developed by <span style="color: #d1d5db; font-weight: 500;">Bishal Biswas</span>
         </p>
     </div>
 """, unsafe_allow_html=True)
