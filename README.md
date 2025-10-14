@@ -1,5 +1,7 @@
 # 🛍️ Visual Product Matcher
 
+Approach documentation- https://drive.google.com/file/d/1vkspviINRi7-ySTC-AdEGrfHsqq-MUIu/view?usp=sharing
+
 AI-powered fashion product similarity search using Vision Transformer and FAISS.
 
 ## ✨ Features
