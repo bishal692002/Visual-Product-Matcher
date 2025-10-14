@@ -105,7 +105,7 @@ def find_similar_products(query_image, top_k=10):
         
         product_info = {
             "image": retrieved_examples["image"][i],
-            "similarity_score": round(similarity_score * 100, 2),
+            "similarity_score": round(similarity_score, 2),  # Already in 0-100 range
             "file_name": file_name,
             "metadata": {}
         }
