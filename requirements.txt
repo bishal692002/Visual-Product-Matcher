@@ -1,0 +1,12 @@
+datasets
+faiss-cpu
+transformers
+torch
+Pillow
+fastapi
+uvicorn[standard]
+streamlit
+requests
+python-multipart
+pandas
+huggingface-hub
