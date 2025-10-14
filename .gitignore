@@ -60,3 +60,4 @@ models/
 # Temporary files
 tmp/
 temp/
+app_with_backend.py
