@@ -212,7 +212,7 @@ if image:
                             st.image(
                                 product["image"],
                                 width=None,
-                                use_container_width=True,
+                                use_column_width=True,
                                 caption=f"Match {idx + 1}"
                             )
                             
