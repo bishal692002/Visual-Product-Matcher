@@ -15,8 +15,94 @@ from transformers import AutoFeatureExtractor, AutoModel
 st.set_page_config(
     page_title="Visual Product Matcher",
     page_icon="🛍️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# Custom CSS for better UI
+st.markdown("""
+    <style>
+    /* Main container styling */
+    .main {
+        padding: 2rem;
+    }
+    
+    /* Title styling */
+    h1 {
+        color: #FF6B6B;
+        text-align: center;
+        font-size: 3rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 0.5rem !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Subtitle styling */
+    .subtitle {
+        text-align: center;
+        color: #666;
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
+    }
+    
+    /* Card styling for results */
+    .product-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .product-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        padding: 0.75rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        width: 100%;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* File uploader styling */
+    .uploadedFile {
+        border-radius: 10px;
+        border: 2px dashed #667eea;
+    }
+    
+    /* Slider styling */
+    .stSlider > div > div > div {
+        background: linear-gradient(to right, #667eea, #764ba2);
+    }
+    
+    /* Success message styling */
+    .element-container:has(>.stAlert) {
+        border-radius: 10px;
+    }
+    
+    /* Info box styling */
+    .info-box {
+        background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        border-left: 4px solid #667eea;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- Initialize Session State ---
 @st.cache_resource
@@ -146,40 +232,57 @@ def find_similar_products(query_image, top_k=10):
     return results
 
 # --- UI ---
-st.title("🛍️ Visual Product Matcher")
-st.markdown("Upload a fashion product image or provide a URL to find similar items!")
+# Header with gradient
+st.markdown("<h1>🛍️ Visual Product Matcher</h1>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Upload a fashion product image or provide a URL to find similar items using AI!</p>", unsafe_allow_html=True)
 
-# Input method selector
-input_method = st.radio("Choose input method:", ["Upload Image", "Image URL"], horizontal=True)
+# Add spacing
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Input method selector with better styling
+st.markdown("### 📤 Choose Your Input Method")
+input_method = st.radio(
+    "",
+    ["📁 Upload Image", "🔗 Image URL"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
 uploaded_file = None
 image = None
 
-if input_method == "Upload Image":
+if "📁" in input_method:
+    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
     uploaded_file = st.file_uploader(
-        "Choose an image file",
+        "📸 Choose an image file",
         type=["jpg", "jpeg", "png"],
         help="Upload a product image to find similar items"
     )
+    st.markdown("</div>", unsafe_allow_html=True)
     if uploaded_file:
         image = Image.open(uploaded_file)
 else:
+    st.markdown("<div class='info-box'>", unsafe_allow_html=True)
     image_url = st.text_input(
-        "Enter image URL:",
+        "🌐 Enter image URL:",
         placeholder="https://example.com/product.jpg",
         help="Paste a direct link to a product image"
     )
+    st.markdown("</div>", unsafe_allow_html=True)
     if image_url:
         if is_valid_url(image_url):
             image = load_image_from_url(image_url)
         else:
             st.error("Please enter a valid URL")
 
-# Filters
+# Filters section with better design
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("### ⚙️ Filter Settings")
+
 col1, col2 = st.columns(2)
 with col1:
     min_similarity = st.slider(
-        "Minimum Similarity (%)",
+        "🎯 Minimum Similarity (%)",
         min_value=0,
         max_value=100,
         value=0,
@@ -188,7 +291,7 @@ with col1:
     )
 with col2:
     num_results = st.slider(
-        "Number of Results",
+        "📊 Number of Results",
         min_value=3,
         max_value=10,
         value=6,
@@ -198,12 +301,19 @@ with col2:
 
 # Display uploaded image
 if image:
-    st.subheader("📸 Your Image")
-    st.image(image, width=300, caption="Input Image")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### 📸 Your Input Image")
     
-    # Find similar products button
-    if st.button("🔍 Find Similar Products", type="primary"):
-        with st.spinner("🔄 Searching for similar products..."):
+    # Center the image
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image(image, use_container_width=True, caption="Input Image")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Find similar products button with custom styling
+    if st.button("🔍 Find Similar Products", type="primary", use_container_width=True):
+        with st.spinner("🔄 Analyzing image and searching for similar products..."):
             try:
                 # Find similar products
                 results = find_similar_products(image, top_k=10)
@@ -215,7 +325,10 @@ if image:
                 ][:num_results]
                 
                 if filtered_results:
-                    st.success(f"✅ Found {len(filtered_results)} similar products!")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.success(f"✨ Found {len(filtered_results)} similar products!")
+                    st.markdown("### 🎯 Similar Products")
+                    st.markdown("<br>", unsafe_allow_html=True)
                     
                     # Display results in grid
                     cols = st.columns(3)
@@ -223,39 +336,63 @@ if image:
                         with cols[idx % 3]:
                             st.image(
                                 product["image"],
-                                use_container_width=True,
-                                caption=f"Match {idx + 1}"
+                                use_container_width=True
                             )
                             
-                            # Similarity score with color
+                            # Similarity score with gradient badge
                             score = product["similarity_score"]
                             if score >= 80:
-                                color = "🟢"
+                                badge_color = "#10b981"  # Green
+                                emoji = "🟢"
                             elif score >= 60:
-                                color = "🟡"
+                                badge_color = "#f59e0b"  # Yellow
+                                emoji = "🟡"
                             else:
-                                color = "🔴"
+                                badge_color = "#ef4444"  # Red
+                                emoji = "🔴"
                             
-                            st.markdown(f"**{color} Similarity: {score}%**")
+                            st.markdown(f"""
+                                <div style="
+                                    background: linear-gradient(135deg, {badge_color}22 0%, {badge_color}44 100%);
+                                    padding: 0.5rem;
+                                    border-radius: 10px;
+                                    text-align: center;
+                                    margin: 0.5rem 0;
+                                    border-left: 4px solid {badge_color};
+                                ">
+                                    <strong>{emoji} Match {idx + 1}: {score}%</strong>
+                                </div>
+                            """, unsafe_allow_html=True)
                             
                             # Show metadata if available
                             if product["metadata"]:
                                 meta = product["metadata"]
                                 if meta.get("productDisplayName", "N/A") != "N/A":
-                                    st.markdown(f"**{meta['productDisplayName']}**")
+                                    st.markdown(f"**🏷️ {meta['productDisplayName']}**")
                                 
-                                with st.expander("📋 View Details"):
-                                    st.write(f"**Category:** {meta.get('masterCategory', 'N/A')}")
-                                    st.write(f"**Type:** {meta.get('articleType', 'N/A')}")
-                                    st.write(f"**Color:** {meta.get('baseColour', 'N/A')}")
-                                    st.write(f"**Gender:** {meta.get('gender', 'N/A')}")
-                                    st.write(f"**Season:** {meta.get('season', 'N/A')}")
+                                with st.expander("📋 View Full Details"):
+                                    st.markdown(f"**Category:** {meta.get('masterCategory', 'N/A')}")
+                                    st.markdown(f"**Type:** {meta.get('articleType', 'N/A')}")
+                                    st.markdown(f"**Color:** {meta.get('baseColour', 'N/A')}")
+                                    st.markdown(f"**Gender:** {meta.get('gender', 'N/A')}")
+                                    st.markdown(f"**Season:** {meta.get('season', 'N/A')}")
+                            
+                            st.markdown("<br>", unsafe_allow_html=True)
                 else:
                     st.warning(f"No products found with similarity >= {min_similarity}%. Try lowering the threshold.")
                     
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
 
-# Footer
+# Footer with enhanced styling
+st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown("---")
-st.markdown("🚀 Powered by Vision Transformer (ViT) & FAISS")
+st.markdown("""
+    <div style="text-align: center; padding: 2rem 0; color: #666;">
+        <h4>🚀 Powered by AI</h4>
+        <p>Vision Transformer (ViT) • FAISS • HuggingFace • Streamlit</p>
+        <p style="font-size: 0.9rem; margin-top: 1rem;">
+            Built with ❤️ for intelligent product discovery
+        </p>
+    </div>
+""", unsafe_allow_html=True)
