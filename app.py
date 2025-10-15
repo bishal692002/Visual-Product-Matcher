@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
+# Custom CSS for better UI - Theme-aware styling
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -46,7 +46,6 @@ st.markdown("""
         font-size: 3.5rem !important;
         font-weight: 300 !important;
         letter-spacing: -0.02em;
-        color: #f9fafb !important;
         text-align: center;
         margin-bottom: 0.5rem !important;
         margin-top: 1rem !important;
@@ -55,18 +54,17 @@ st.markdown("""
     /* Subtitle */
     .subtitle {
         text-align: center;
-        color: #d1d5db;
         font-size: 1.125rem;
         font-weight: 400;
         margin-bottom: 3rem;
         line-height: 1.6;
+        opacity: 0.8;
     }
     
     /* Section headers */
     h3 {
         font-size: 1.125rem !important;
         font-weight: 600 !important;
-        color: #f3f4f6 !important;
         margin-top: 2.5rem !important;
         margin-bottom: 1rem !important;
         letter-spacing: -0.01em;
@@ -74,11 +72,12 @@ st.markdown("""
     
     /* Radio buttons - Minimal tabs style */
     .stRadio > div {
-        background: #1f2937;
         border-radius: 12px;
         padding: 0.25rem;
         display: inline-flex;
         gap: 0.25rem;
+        background-color: var(--background-color);
+        border: 1px solid rgba(128, 128, 128, 0.2);
     }
     
     .stRadio > div > label {
@@ -88,51 +87,39 @@ st.markdown("""
         font-weight: 500;
         font-size: 0.9375rem;
         transition: all 0.2s ease;
-        color: #9ca3af;
+        opacity: 0.7;
     }
     
     .stRadio > div > label:hover {
-        background: #374151;
-        color: #f9fafb;
-    }
-    
-    .stRadio > div > label[data-baseweb="radio"] > div:first-child {
-        background: #f9fafb;
-    }
-    
-    .stRadio > div > label > div[data-testid="stMarkdownContainer"] {
-        color: #f9fafb;
+        opacity: 1;
+        background: rgba(128, 128, 128, 0.1);
     }
     
     /* File uploader */
     .stFileUploader {
-        border: 2px dashed #4b5563;
+        border: 2px dashed rgba(128, 128, 128, 0.3);
         border-radius: 16px;
         padding: 2rem;
-        background: #1f2937;
         transition: all 0.3s ease;
     }
     
     .stFileUploader:hover {
-        border-color: #6b7280;
-        background: #374151;
+        border-color: rgba(128, 128, 128, 0.5);
+        background: rgba(128, 128, 128, 0.05);
     }
     
     /* Text input */
     .stTextInput > div > div > input {
-        border: 1.5px solid #4b5563;
+        border: 1.5px solid rgba(128, 128, 128, 0.3);
         border-radius: 12px;
         padding: 0.75rem 1rem;
         font-size: 0.9375rem;
         transition: all 0.2s ease;
-        background: #1f2937;
-        color: #f9fafb;
     }
     
     .stTextInput > div > div > input:focus {
-        border-color: #9ca3af;
-        background: #374151;
-        box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.1);
+        border-color: rgba(128, 128, 128, 0.6);
+        box-shadow: 0 0 0 3px rgba(128, 128, 128, 0.1);
     }
     
     /* Sliders */
@@ -140,22 +127,8 @@ st.markdown("""
         padding: 1rem 0;
     }
     
-    .stSlider > div > div > div > div {
-        background: #f9fafb;
-    }
-    
-    .stSlider > div > div > div {
-        background: #4b5563;
-    }
-    
-    .stSlider label {
-        color: #f9fafb !important;
-    }
-    
     /* Button - Sophisticated design */
     .stButton > button {
-        background: #f9fafb;
-        color: #1a1a1a;
         border: none;
         border-radius: 12px;
         padding: 0.875rem 2rem;
@@ -167,8 +140,7 @@ st.markdown("""
     }
     
     .stButton > button:hover {
-        background: #ffffff;
-        box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         transform: translateY(-1px);
     }
     
@@ -197,19 +169,18 @@ st.markdown("""
     
     /* Expander */
     .streamlit-expanderHeader {
-        background: #1f2937;
         border-radius: 8px;
         padding: 0.625rem 1rem;
         font-weight: 500;
         font-size: 0.875rem;
-        color: #d1d5db;
+        background: rgba(128, 128, 128, 0.1);
     }
     
     /* Divider */
     hr {
         margin: 3rem 0;
         border: none;
-        border-top: 1px solid #374151;
+        border-top: 1px solid rgba(128, 128, 128, 0.2);
     }
     
     /* Custom badge styling */
@@ -222,37 +193,34 @@ st.markdown("""
         margin: 0.5rem 0;
     }
     
-    /* Spinner */
-    .stSpinner > div {
-        border-color: #f9fafb !important;
-    }
-    
-    /* File uploader text */
-    .stFileUploader label {
-        color: #f9fafb !important;
-    }
-    
-    .stFileUploader small {
-        color: #9ca3af !important;
-    }
-    
-    /* Text input labels */
-    .stTextInput label {
-        color: #f9fafb !important;
-    }
-    
     /* Expander content */
     .streamlit-expanderContent {
-        background: #1f2937;
-        color: #e5e7eb;
+        border-radius: 8px;
+        background: rgba(128, 128, 128, 0.05);
     }
     
-    .streamlit-expanderContent p {
-        color: #e5e7eb !important;
+    /* Product name styling */
+    .product-name {
+        font-weight: 500;
+        font-size: 0.9375rem;
+        margin: 0.5rem 0;
     }
     
-    .streamlit-expanderContent strong {
-        color: #f9fafb !important;
+    /* Footer styling */
+    .footer-text {
+        text-align: center;
+        padding: 2rem 0;
+        opacity: 0.6;
+    }
+    
+    .footer-text p {
+        font-size: 0.875rem;
+        font-weight: 400;
+    }
+    
+    .footer-author {
+        font-weight: 500;
+        opacity: 0.8;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -519,7 +487,7 @@ if image:
                             if product["metadata"]:
                                 meta = product["metadata"]
                                 if meta.get("productDisplayName", "N/A") != "N/A":
-                                    st.markdown(f"<p style='font-weight: 500; font-size: 0.9375rem; color: #f9fafb; margin: 0.5rem 0;'>{meta['productDisplayName']}</p>", unsafe_allow_html=True)
+                                    st.markdown(f"<p class='product-name'>{meta['productDisplayName']}</p>", unsafe_allow_html=True)
                                 
                                 with st.expander("View Details"):
                                     st.markdown(f"**Category:** {meta.get('masterCategory', 'N/A')}")
@@ -539,9 +507,9 @@ if image:
 st.markdown("<br><br><br>", unsafe_allow_html=True)
 st.markdown("---")
 st.markdown("""
-    <div style="text-align: center; padding: 2rem 0; color: #6b7280;">
-        <p style="font-size: 0.875rem; font-weight: 400;">
-            Developed by <span style="color: #d1d5db; font-weight: 500;">Bishal Biswas</span>
+    <div class="footer-text">
+        <p>
+            Developed by <span class="footer-author">Bishal Biswas</span>
         </p>
     </div>
 """, unsafe_allow_html=True)
