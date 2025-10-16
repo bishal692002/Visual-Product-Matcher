@@ -5,7 +5,7 @@ torch
 Pillow
 fastapi
 uvicorn[standard]
-streamlit
+streamlit>=1.32.0
 requests
 python-multipart
 pandas

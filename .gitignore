@@ -53,12 +53,47 @@ img/styles_backup.csv
 # Model cache
 .cache/
 models/
+transformers_cache/
+huggingface_cache/
 
 # Logs
 *.log
+logs/
 
 # Temporary files
 tmp/
 temp/
 app_with_backend.py
-app_with_backend.py
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+# PyTorch
+*.pt
+*.pth
+*.ckpt
+
+# Test files
+test_*.py
+*_test.py
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Documentation builds
+docs/_build/
+site/
+
+# Mac
+.AppleDouble
+.LSOverride
+._*
