@@ -288,21 +288,18 @@ processor, clip_model, dataset, metadata_df, dataset_size = load_model_and_datas
 # --- Helper Functions ---
 def extract_embeddings(image: Image.Image) -> np.ndarray:
     """
-    Extract an L2-normalised 768-dim image embedding using FashionCLIP's ViT-B/32.
+    Extract an L2-normalised 512-dim image embedding using FashionCLIP's ViT-B/32.
 
-    Architecture step: Image Preprocessing → Vision Transformer → 768-Dimensional Vector
-
-    We take the raw ViT pooler output (768-dim CLS token) instead of going through
-    CLIP's visual_projection (which squeezes to 512-dim). The 768-dim representation
-    retains more colour, texture, and shape information for image-to-image retrieval.
+    Uses CLIP's visual_projection (512-dim) — matches the embeddings stored in the
+    HuggingFace dataset produced by upload_ds.py.
     """
     _device = next(clip_model.parameters()).device
     inputs = processor(images=image.convert("RGB"), return_tensors="pt")
     pixel_values = inputs["pixel_values"].to(_device)
     with torch.no_grad():
         vision_out = clip_model.vision_model(pixel_values=pixel_values)
-        features = vision_out.pooler_output  # (1, 768) — raw ViT CLS token
-    vec = features.squeeze().cpu().numpy()  # always back to CPU/numpy
+        features = clip_model.visual_projection(vision_out.pooler_output)  # (1, 512)
+    vec = features.squeeze().cpu().numpy()
     norm = np.linalg.norm(vec)
     return vec / norm if norm > 0 else vec
 
