@@ -1,15 +1,19 @@
+import os
 import streamlit as st
 from PIL import Image
 import requests
 import io
 import numpy as np
 from urllib.parse import urlparse
-import math
 import pandas as pd
+import torch
 
 # Import ML libraries
-from datasets import load_dataset
-from transformers import AutoFeatureExtractor, AutoModel
+from datasets import load_dataset, load_from_disk
+from transformers import CLIPProcessor, CLIPModel
+
+# Local cache path for the 44K-image index built by build_local_index.py
+LOCAL_INDEX_PATH = os.path.join(os.path.dirname(__file__), "cache", "fashion_index")
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -225,40 +229,86 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Initialize Session State ---
+# --- Model + Dataset Loading ---
 @st.cache_resource
 def load_model_and_dataset():
-    """Load model and dataset once and cache them"""
-    with st.spinner("🔄 Loading AI model and product database..."):
-        # Load Vision Transformer model
-        MODEL_CKPT = 'google/vit-base-patch16-224'
-        extractor = AutoFeatureExtractor.from_pretrained(MODEL_CKPT)
-        model = AutoModel.from_pretrained(MODEL_CKPT)
-        
-        # Load embeddings dataset from HuggingFace
+    """Load FashionCLIP model and fashion image index (local 44K cache or HF fallback)"""
+    # ------------------------------------------------------------------ model
+    # Architecture: Input Image → FashionCLIP ViT-B/32 Vision Encoder
+    #               → 768-Dimensional Pooler Output (L2-normed)
+    #               → FAISS Inner-Product Index → Top-K Results
+    #
+    # FashionCLIP is fine-tuned on ~700K fashion image-text pairs.
+    # We extract the raw 768-dim ViT CLS token (before CLIP's 512-dim projection)
+    # for richer colour, texture, and garment-shape features.
+    MODEL_CKPT = "patrickjohncyh/fashion-clip"
+    processor = CLIPProcessor.from_pretrained(MODEL_CKPT)
+    clip_model = CLIPModel.from_pretrained(MODEL_CKPT)
+    clip_model.eval()
+    # Apple Silicon MPS > CUDA > CPU
+    _device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
+    clip_model = clip_model.to(_device)
+
+    # ---------------------------------------------------------------- dataset
+    if os.path.exists(LOCAL_INDEX_PATH):
+        # Full 44K local index built by build_local_index.py
+        dataset = load_from_disk(LOCAL_INDEX_PATH)
+        dataset_size = len(dataset)
+    else:
+        # Fallback: load old small HF dataset (limited accuracy)
         DATASET_REPO = "Gauravannad/fashion-products-embeddings"
         dataset = load_dataset(DATASET_REPO, split="train")
-        
-        # Add FAISS index for fast similarity search
-        dataset.add_faiss_index(column="embeddings")
-        
-        # Load metadata
-        try:
-            metadata_df = pd.read_csv('./img/styles.csv', on_bad_lines='skip')
-        except:
-            metadata_df = None
-        
-        return extractor, model, dataset, metadata_df
+        dataset_size = len(dataset)
+        st.warning(
+            f"⚠️ Using small fallback dataset ({dataset_size} images). "
+            "Run `python build_local_index.py` to build the full 44K index for accurate results."
+        )
+
+    # Embeddings in the local index are already L2-normalised.
+    # Embeddings in the old HF dataset may not be — normalise to be safe.
+    raw_embs = np.array(dataset["embeddings"]).astype("float32")
+    norms = np.linalg.norm(raw_embs, axis=1, keepdims=True)
+    normed = raw_embs / np.maximum(norms, 1e-8)
+    # Only add the column if it doesn't already exist
+    if "embeddings_norm" not in dataset.column_names:
+        dataset = dataset.add_column("embeddings_norm", normed.tolist())
+    # Build cosine-similarity FAISS index (inner-product on unit vectors)
+    dataset.add_faiss_index(column="embeddings_norm", metric_type=0)
+
+    # ---------------------------------------------------------------- metadata
+    try:
+        metadata_df = pd.read_csv(
+            os.path.join(os.path.dirname(__file__), "img", "styles.csv"),
+            on_bad_lines="skip"
+        )
+    except Exception:
+        metadata_df = None
+
+    return processor, clip_model, dataset, metadata_df, dataset_size
 
 # Load everything
-extractor, model, dataset, metadata_df = load_model_and_dataset()
+processor, clip_model, dataset, metadata_df, dataset_size = load_model_and_dataset()
 
 # --- Helper Functions ---
 def extract_embeddings(image: Image.Image) -> np.ndarray:
-    """Convert image to embedding vector"""
-    image_pp = extractor(image.convert("RGB"), return_tensors="pt")
-    features = model(**image_pp).last_hidden_state[:, 0].detach().numpy()
-    return features.squeeze()
+    """
+    Extract an L2-normalised 768-dim image embedding using FashionCLIP's ViT-B/32.
+
+    Architecture step: Image Preprocessing → Vision Transformer → 768-Dimensional Vector
+
+    We take the raw ViT pooler output (768-dim CLS token) instead of going through
+    CLIP's visual_projection (which squeezes to 512-dim). The 768-dim representation
+    retains more colour, texture, and shape information for image-to-image retrieval.
+    """
+    _device = next(clip_model.parameters()).device
+    inputs = processor(images=image.convert("RGB"), return_tensors="pt")
+    pixel_values = inputs["pixel_values"].to(_device)
+    with torch.no_grad():
+        vision_out = clip_model.vision_model(pixel_values=pixel_values)
+        features = vision_out.pooler_output  # (1, 768) — raw ViT CLS token
+    vec = features.squeeze().cpu().numpy()  # always back to CPU/numpy
+    norm = np.linalg.norm(vec)
+    return vec / norm if norm > 0 else vec
 
 def is_valid_url(url):
     """Check if string is valid URL"""
@@ -278,79 +328,94 @@ def load_image_from_url(url):
         st.error(f"Failed to load image from URL: {e}")
         return None
 
-def find_similar_products(query_image, top_k=10):
-    """Find similar products using FAISS"""
-    # Extract embedding from query image
-    query_embedding = extract_embeddings(query_image)
-    
-    # Search in FAISS index
-    scores, retrieved_examples = dataset.get_nearest_examples(
-        "embeddings", query_embedding, k=top_k
+def find_similar_products(query_image, top_k=10, text_hint: str = ""):
+    """
+    Find similar products using the 768-dim FashionCLIP FAISS index.
+
+    Pipeline (matches system architecture diagram):
+      1. Image Preprocessing  — resize & normalise via CLIPProcessor
+      2. Vision Transformer   — FashionCLIP ViT-B/32 pooler output
+      3. 768-Dimensional Vector — L2-normalised CLS token
+      4. FAISS Inner-Product Index — cosine similarity search (inner product on unit vectors)
+      5. Top-K Similar Products + Similarity Scores
+
+    Text Hint (optional):
+      If the user provides a description (e.g. "green polo t-shirt"), results are
+      re-ranked AFTER FAISS retrieval by boosting items whose metadata keywords
+      (colour, articleType) match the hint. This avoids the incompatible-space
+      issue of blending 768-dim image vectors with CLIP's 512-dim text vectors.
+    """
+    query_embedding = extract_embeddings(query_image)  # 768-dim L2-normed vector
+
+    # Fetch 6× candidates for high recall — FAISS sorts by cosine similarity
+    fetch_k = min(top_k * 6, len(dataset))
+    scores, retrieved = dataset.get_nearest_examples(
+        "embeddings_norm", query_embedding, k=fetch_k
     )
-    
-    # Prepare results
+
+    # --- Score rescaling ---
+    # 768-dim ViT pooler cosine scores sit in ~[0.50, 0.98] for fashion images.
+    # Rescale to [0, 100] so top matches show 85–98%, unrelated items show 0–20%.
+    LOW  = 0.50   # cosine score → 0 %
+    HIGH = 0.98   # cosine score → 100 %
+
+    def rescale(raw_score):
+        pct = (float(raw_score) - LOW) / (HIGH - LOW) * 100.0
+        return round(max(0.0, min(100.0, pct)), 1)
+
+    def _get(col, i):
+        col_data = retrieved.get(col)
+        if col_data is None:
+            return "N/A"
+        val = col_data[i]
+        return str(val) if val is not None and str(val) not in ("", "nan", "None") else "N/A"
+
     results = []
-    
-    # Normalize scores to 0-100% range using min-max scaling
-    # The closest item gets highest score, furthest gets lowest
-    max_score = max(scores) if len(scores) > 0 else 1
-    min_score = min(scores) if len(scores) > 0 else 0
-    score_range = max_score - min_score if max_score != min_score else 1
-    
-    for i in range(len(retrieved_examples["image"])):
-        # Calculate similarity: invert and normalize so closest = 100%, furthest = lower
-        # Formula: 100 - ((distance - min) / (max - min) * 100)
-        normalized_distance = (scores[i] - min_score) / score_range
-        similarity_score = (1 - normalized_distance) * 100
-        
-        # Ensure it's in 0-100 range
-        similarity_score = max(0, min(100, similarity_score))
-        
-        # Get metadata
-        file_name = retrieved_examples.get("file_name", [None])[i]
-        product_id = retrieved_examples.get("id", [None])[i]
-        
+    for i in range(len(retrieved["image"])):
+        raw   = float(scores[i])
+        score = rescale(raw)
         product_info = {
-            "image": retrieved_examples["image"][i],
-            "similarity_score": round(similarity_score, 2),  # Already in 0-100 range
-            "file_name": file_name,
-            "metadata": {}
+            "image": retrieved["image"][i],
+            "similarity_score": score,
+            "raw_score": raw,
+            "metadata": {
+                "productDisplayName": _get("productDisplayName", i),
+                "gender":             _get("gender", i),
+                "masterCategory":     _get("masterCategory", i),
+                "subCategory":        _get("subCategory", i),
+                "articleType":        _get("articleType", i),
+                "baseColour":         _get("baseColour", i),
+                "season":             _get("season", i),
+                "year":               _get("year", i),
+                "usage":              _get("usage", i),
+            }
         }
-        
-        # Add metadata from CSV
-        if metadata_df is not None:
-            try:
-                product_row = None
-                if product_id is not None:
-                    product_row = metadata_df[metadata_df['id'] == product_id]
-                
-                # Try to extract ID from filename
-                if (product_row is None or product_row.empty) and file_name:
-                    import re
-                    match = re.search(r'(\d+)', str(file_name))
-                    if match:
-                        file_id = int(match.group(1))
-                        product_row = metadata_df[metadata_df['id'] == file_id]
-                
-                if product_row is not None and not product_row.empty:
-                    row = product_row.iloc[0]
-                    product_info["metadata"] = {
-                        "productDisplayName": row.get('productDisplayName', 'N/A'),
-                        "gender": row.get('gender', 'N/A'),
-                        "masterCategory": row.get('masterCategory', 'N/A'),
-                        "subCategory": row.get('subCategory', 'N/A'),
-                        "articleType": row.get('articleType', 'N/A'),
-                        "baseColour": row.get('baseColour', 'N/A'),
-                        "season": row.get('season', 'N/A'),
-                        "year": row.get('year', 'N/A'),
-                        "usage": row.get('usage', 'N/A')
-                    }
-            except Exception as e:
-                pass
-        
         results.append(product_info)
-    
-    return results
+
+    # --- Text-hint re-ranking (post-search metadata boosting) ---
+    # We work in metadata-space so there is no embedding-space mismatch.
+    if text_hint.strip():
+        hint_words = set(text_hint.lower().split())
+
+        def hint_bonus(item):
+            meta = item["metadata"]
+            fields = " ".join([
+                meta.get("baseColour", ""),
+                meta.get("articleType", ""),
+                meta.get("subCategory", ""),
+                meta.get("productDisplayName", ""),
+                meta.get("gender", ""),
+            ]).lower()
+            # Count how many hint words appear in the metadata
+            matches = sum(1 for w in hint_words if w in fields)
+            return matches
+
+        # Sort: primarily by hint word matches, secondarily by cosine score
+        results.sort(key=lambda x: (hint_bonus(x), x["raw_score"]), reverse=True)
+    else:
+        results.sort(key=lambda x: x["raw_score"], reverse=True)
+
+    return results[:top_k]
 
 # --- UI ---
 # Header - Minimal and elegant
@@ -409,12 +474,18 @@ with col1:
 with col2:
     num_results = st.slider(
         "Results to Show",
-        min_value=3,
-        max_value=10,
-        value=6,
-        step=1,
+        min_value=4,
+        max_value=12,
+        value=8,
+        step=4,
         help="Number of similar products to display"
     )
+
+text_hint = st.text_input(
+    "Describe the product (optional — boosts matching items to the top)",
+    placeholder="e.g. green polo t-shirt, black running shoes, floral dress…",
+    help="Keywords are matched against product colour, type, and name to re-rank results after visual search."
+)
 
 # Display uploaded image
 if image:
@@ -430,10 +501,10 @@ if image:
     
     # Search button
     if st.button("Find Similar Products", type="primary", use_container_width=True):
-        with st.spinner("Analyzing image..."):
+        with st.spinner("Analyzing image…"):
             try:
-                # Find similar products
-                results = find_similar_products(image, top_k=10)
+                # Find similar products (pass optional text hint for guided search)
+                results = find_similar_products(image, top_k=num_results, text_hint=text_hint)
                 
                 # Filter by similarity threshold
                 filtered_results = [
@@ -443,18 +514,19 @@ if image:
                 
                 if filtered_results:
                     st.markdown("<br><br>", unsafe_allow_html=True)
-                    st.success(f"Found {len(filtered_results)} similar products")
+                    hint_note = f" (guided by: \"{text_hint}\")" if text_hint.strip() else ""
+                    st.success(f"Found {len(filtered_results)} similar products — searched {dataset_size:,} items{hint_note}")
                     st.markdown("### Similar Products")
                     st.markdown("<br>", unsafe_allow_html=True)
                     
-                    # Display results in grid
-                    cols = st.columns(3)
+                    # Display results in 4-column grid with fixed image size
+                    cols = st.columns(4)
                     for idx, product in enumerate(filtered_results):
-                        with cols[idx % 3]:
-                            st.image(
-                                product["image"],
-                                use_container_width=True
-                            )
+                        with cols[idx % 4]:
+                            # Resize for uniform card display
+                            thumb = product["image"].copy()
+                            thumb.thumbnail((280, 320), Image.LANCZOS)
+                            st.image(thumb, width=240)
                             
                             # Similarity badge - minimal design
                             score = product["similarity_score"]

@@ -1,12 +1,30 @@
-datasets
-faiss-cpu
-transformers
-torch
-Pillow
-fastapi
-uvicorn[standard]
+# ── Core ML ───────────────────────────────────────────────────────────────────
+torch>=2.1.0
+transformers>=4.38.0
+datasets>=2.18.0
+huggingface-hub>=0.22.0
+
+# ── Vector search ─────────────────────────────────────────────────────────────
+faiss-cpu>=1.8.0        # use faiss-gpu if you have a CUDA GPU
+
+# ── Image processing ──────────────────────────────────────────────────────────
+Pillow>=10.0.0
+ftfy>=6.1.0
+regex
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
 streamlit>=1.32.0
-requests
-python-multipart
-pandas
-huggingface-hub
+
+# ── Backend API ───────────────────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# ── Data handling ─────────────────────────────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+requests>=2.31.0
+tqdm>=4.66.0

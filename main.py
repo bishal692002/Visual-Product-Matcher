@@ -5,11 +5,13 @@ from PIL import Image
 import numpy as np
 import base64
 import io
+import os
 import pandas as pd
+import torch
 
 # Import necessary libraries from Hugging Face
-from datasets import load_dataset
-from transformers import AutoFeatureExtractor, AutoModel
+from datasets import load_dataset, load_from_disk
+from transformers import CLIPProcessor, CLIPModel
 
 # --- 1. Application Setup ---
 # Initialize FastAPI app
@@ -40,27 +42,41 @@ except Exception as e:
 # Loading models and data is time-consuming, so we do it here to avoid
 # reloading on every API request, which would be very slow.
 
-print("Loading model and feature extractor...")
-# Load the pre-trained Vision Transformer (ViT) model and its feature extractor
-# This model is excellent for creating general-purpose image embeddings.
-MODEL_CKPT = 'google/vit-base-patch16-224'
-extractor = AutoFeatureExtractor.from_pretrained(MODEL_CKPT)
-model = AutoModel.from_pretrained(MODEL_CKPT)
-print("Model and feature extractor loaded successfully.")
+print("Loading FashionCLIP model...")
+# FashionCLIP is fine-tuned on ~700K fashion image-text pairs.
+# It understands garment COLOR, type, and style — far more accurate than ViT-Base for apparel search.
+MODEL_CKPT = "patrickjohncyh/fashion-clip"
+processor = CLIPProcessor.from_pretrained(MODEL_CKPT)
+model = CLIPModel.from_pretrained(MODEL_CKPT)
+model.eval()
+# Apple Silicon MPS > CUDA > CPU
+_device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(_device)
+print(f"FashionCLIP model loaded on {_device.upper()}.")
 
-print("Loading embeddings dataset from Hugging Face Hub...")
-# IMPORTANT: Replace this with your own dataset repository from Step 2
-# DATASET_REPO = "Gauravannad/fashion-dataset-embeddings"
-DATASET_REPO = "Gauravannad/fashion-products-embeddings"
-# Load the dataset containing pre-computed embeddings
+print("Loading embeddings dataset...")
+# Try local 44K index first (built by build_local_index.py), then fall back to HF hub
+LOCAL_INDEX_PATH = os.path.join(os.path.dirname(__file__), "cache", "fashion_index")
+DATASET_REPO = "Gauravannad/fashion-products-embeddings"  # fallback (small)
 try:
-    dataset = load_dataset(DATASET_REPO, split="train")
-    print("Dataset loaded successfully.")
+    if os.path.exists(LOCAL_INDEX_PATH):
+        dataset = load_from_disk(LOCAL_INDEX_PATH)
+        print(f"Loaded local index: {len(dataset):,} images")
+    else:
+        dataset = load_dataset(DATASET_REPO, split="train")
+        print(f"Loaded HF fallback dataset: {len(dataset):,} images")
+        print("WARNING: Run build_local_index.py for the full 44K fashion dataset!")
 
-    # Add a FAISS index to the 'embeddings' column for fast similarity search
-    # This creates a highly optimized index for finding nearest neighbors.
-    print("Adding FAISS index to the dataset...")
-    dataset.add_faiss_index(column="embeddings")
+    # Normalise embeddings to unit vectors (L2) so inner-product == cosine sim
+    raw_embs = np.array(dataset["embeddings"]).astype("float32")
+    norms = np.linalg.norm(raw_embs, axis=1, keepdims=True)
+    normed = raw_embs / np.maximum(norms, 1e-8)
+    if "embeddings_norm" not in dataset.column_names:
+        dataset = dataset.add_column("embeddings_norm", normed.tolist())
+
+    # Add FAISS inner-product index (cosine similarity for unit vectors)
+    print("Adding FAISS cosine-similarity index...")
+    dataset.add_faiss_index(column="embeddings_norm", metric_type=0)  # 0 = METRIC_INNER_PRODUCT
     print("FAISS index added successfully.")
     DATASET_LOADED = True
 except Exception as e:
@@ -70,12 +86,18 @@ except Exception as e:
 # --- 3. Helper Functions ---
 
 def extract_embeddings(image: Image.Image) -> np.ndarray:
-    """Converts an image into a numerical vector (embedding)."""
-    # Use the feature extractor to preprocess the image
-    image_pp = extractor(image.convert("RGB"), return_tensors="pt")
-    # Pass the preprocessed image to the model to get the features
-    features = model(**image_pp).last_hidden_state[:, 0].detach().numpy()
-    return features.squeeze()
+    """
+    Extract an L2-normalised FashionCLIP image embedding (512-dim).
+    FashionCLIP understands garment color, type and style accurately.
+    """
+    inputs = processor(images=image.convert("RGB"), return_tensors="pt")
+    pixel_values = inputs["pixel_values"].to(_device)
+    with torch.no_grad():
+        vision_out = model.vision_model(pixel_values=pixel_values)
+        features = model.visual_projection(vision_out.pooler_output)  # (1, 512)
+    vec = features.squeeze().cpu().numpy()  # always back to CPU for FAISS
+    norm = np.linalg.norm(vec)
+    return vec / norm if norm > 0 else vec
 
 def pil_to_base64(image: Image.Image) -> str:
     """Converts a PIL Image object to a Base64 encoded string."""
@@ -132,9 +154,9 @@ async def recommend_products(file: UploadFile = File(...)):
         # Use the FAISS index to find the 10 most similar images
         try:
             scores, retrieved_examples = dataset.get_nearest_examples(
-                "embeddings", query_embedding, k=10
+                "embeddings_norm", query_embedding, k=10
             )
-            print(f"Debug: FAISS distances: {scores[:3]}")  # Show first 3 distances for debugging
+            print(f"Debug: cosine similarity scores: {scores[:3]}")  # 1.0 = identical
         except Exception as search_error:
             return JSONResponse(
                 status_code=500,
@@ -145,56 +167,29 @@ async def recommend_products(file: UploadFile = File(...)):
         recommendations = []
         for i in range(len(retrieved_examples["image"])):
             try:
-                # Convert each recommended PIL image to a Base64 string
                 img_base64 = pil_to_base64(retrieved_examples["image"][i])
-                
-                # Get product metadata if available
-                file_name = retrieved_examples.get("file_name", [None])[i] if "file_name" in retrieved_examples else None
-                product_id = retrieved_examples.get("id", [None])[i] if "id" in retrieved_examples else None
-                
-                # Calculate similarity score (lower distance = higher similarity)
-                # FAISS returns L2 distances (typically 0-50 range for ViT embeddings)
-                # Convert to similarity percentage: very similar images (distance ~5-10) should show 85-95%
-                import math
-                # Using exponential decay with scale=20 gives good range:
-                # distance=0 -> 100%, distance=5 -> 95%, distance=10 -> 90%, distance=20 -> 78%
-                similarity_score = math.exp(-scores[i] / 20)
-                
+                similarity_score = round(max(0.0, min(1.0, float(scores[i]))) * 100, 2)
+
+                # Pull metadata directly from the dataset columns (ashraq dataset has all fields)
+                def _col(col):
+                    data = retrieved_examples.get(col)
+                    if data is None or i >= len(data):
+                        return "Unknown"
+                    val = data[i]
+                    return str(val) if val is not None and str(val) not in ("", "nan", "None") else "Unknown"
+
                 product_info = {
-                    "image": img_base64,
-                    "similarity_score": round(similarity_score * 100, 2),  # Percentage
-                    "file_name": file_name
+                    "image":            img_base64,
+                    "similarity_score": similarity_score,
+                    "product_name":     _col("productDisplayName"),
+                    "category":         _col("masterCategory"),
+                    "sub_category":     _col("subCategory"),
+                    "article_type":     _col("articleType"),
+                    "color":            _col("baseColour"),
+                    "gender":           _col("gender"),
+                    "season":           _col("season"),
+                    "usage":            _col("usage"),
                 }
-                
-                # Add metadata from CSV if available
-                if METADATA_LOADED and metadata_df is not None:
-                    try:
-                        # Try to match by product_id first
-                        product_row = None
-                        if product_id is not None:
-                            product_row = metadata_df[metadata_df['id'] == product_id]
-                        
-                        # If no match by ID, try to extract ID from filename
-                        if (product_row is None or product_row.empty) and file_name:
-                            # Extract numeric ID from filename (e.g., "12345.jpg" -> 12345)
-                            import re
-                            match = re.search(r'(\d+)', str(file_name))
-                            if match:
-                                file_id = int(match.group(1))
-                                product_row = metadata_df[metadata_df['id'] == file_id]
-                        
-                        if product_row is not None and not product_row.empty:
-                            product_info.update({
-                                "product_name": str(product_row.iloc[0].get('productDisplayName', 'Unknown')),
-                                "category": str(product_row.iloc[0].get('masterCategory', 'Unknown')),
-                                "sub_category": str(product_row.iloc[0].get('subCategory', 'Unknown')),
-                                "article_type": str(product_row.iloc[0].get('articleType', 'Unknown')),
-                                "color": str(product_row.iloc[0].get('baseColour', 'Unknown')),
-                                "gender": str(product_row.iloc[0].get('gender', 'Unknown')),
-                            })
-                    except Exception as meta_error:
-                        print(f"Error retrieving metadata: {meta_error}")
-                
                 recommendations.append(product_info)
             except Exception as rec_error:
                 print(f"Error processing recommendation {i}: {rec_error}")

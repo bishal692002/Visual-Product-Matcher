@@ -1,99 +1,84 @@
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
+*.egg
+*.egg-info/
 dist/
-downloads/
+build/
 eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
-# Virtual Environment
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
 venv/
 env/
 ENV/
-myenv/
 
-# IDE
+# ── Environment & secrets ──────────────────────────────────────────────────────
+.env
+.env.*
+secrets.json
+.streamlit/secrets.toml
+
+# ── Local cache & generated indexes ───────────────────────────────────────────
+# The local FAISS index is built on first run via build_local_index.py.
+# These files are large and machine-specific — do not commit them.
+cache/
+*.faiss
+*.index
+
+# ── Model weights ─────────────────────────────────────────────────────────────
+*.pt
+*.pth
+*.ckpt
+
+# ── HuggingFace / Transformers cache ──────────────────────────────────────────
+.cache/
+models/
+transformers_cache/
+huggingface_cache/
+
+# ── Large data files ───────────────────────────────────────────────────────────
+# Product images should not be committed; they are pulled from HuggingFace Hub.
+img/images/
+img/myntradataset/
+img/images_backup/
+img/styles_backup.csv
+
+# ── Jupyter ────────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Logs & temporary files ─────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+watch_*
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+
+# ── IDE & editors ─────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Dataset (large files)
-img/images/*.jpg
-img/myntradataset/
-img/images_backup/
-img/styles_backup.csv
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Environment variables
-.env
-.env.local
-
-# Model cache
-.cache/
-models/
-transformers_cache/
-huggingface_cache/
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-tmp/
-temp/
-app_with_backend.py
-
-# Streamlit cache
-.streamlit/secrets.toml
-
-# PyTorch
-*.pt
-*.pth
-*.ckpt
-
-# Test files
-test_*.py
-*_test.py
-
-# Coverage reports
+# ── Coverage & testing ────────────────────────────────────────────────────────
 htmlcov/
 .coverage
 .coverage.*
 coverage.xml
 *.cover
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Documentation builds
+# ── Documentation builds ──────────────────────────────────────────────────────
 docs/_build/
 site/
-
-# Mac
-.AppleDouble
-.LSOverride
-._*
