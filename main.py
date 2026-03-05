@@ -57,7 +57,7 @@ print(f"FashionCLIP model loaded on {_device.upper()}.")
 print("Loading embeddings dataset...")
 # Try local 44K index first (built by build_local_index.py), then fall back to HF hub
 LOCAL_INDEX_PATH = os.path.join(os.path.dirname(__file__), "cache", "fashion_index")
-DATASET_REPO = "Gauravannad/fashion-products-embeddings"  # fallback (small)
+DATASET_REPO = "bishal692002/fashion-products-embeddings"  # fallback (small)
 try:
     if os.path.exists(LOCAL_INDEX_PATH):
         dataset = load_from_disk(LOCAL_INDEX_PATH)

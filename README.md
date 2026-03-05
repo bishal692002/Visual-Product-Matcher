@@ -1,3 +1,13 @@
+---
+title: Visual Product Matcher
+emoji: 🛍️
+colorFrom: indigo
+colorTo: pink
+sdk: streamlit
+app_file: app.py
+pinned: false
+---
+
 # Visual Product Matcher
 
 > AI-powered fashion similarity search — upload any product image and instantly find visually similar items from a 44K-image catalog.

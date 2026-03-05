@@ -256,7 +256,7 @@ def load_model_and_dataset():
         dataset_size = len(dataset)
     else:
         # Fallback: load old small HF dataset (limited accuracy)
-        DATASET_REPO = "Gauravannad/fashion-products-embeddings"
+        DATASET_REPO = "bishal692002/fashion-products-embeddings"
         dataset = load_dataset(DATASET_REPO, split="train")
         dataset_size = len(dataset)
         st.warning(
