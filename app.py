@@ -255,14 +255,10 @@ def load_model_and_dataset():
         dataset = load_from_disk(LOCAL_INDEX_PATH)
         dataset_size = len(dataset)
     else:
-        # Fallback: load old small HF dataset (limited accuracy)
+        # Load full 44K embeddings dataset from HuggingFace Hub
         DATASET_REPO = "bishal692002/fashion-products-embeddings"
         dataset = load_dataset(DATASET_REPO, split="train")
         dataset_size = len(dataset)
-        st.warning(
-            f"⚠️ Using small fallback dataset ({dataset_size} images). "
-            "Run `python build_local_index.py` to build the full 44K index for accurate results."
-        )
 
     # Embeddings in the local index are already L2-normalised.
     # Embeddings in the old HF dataset may not be — normalise to be safe.
