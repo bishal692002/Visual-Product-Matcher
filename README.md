@@ -1,31 +1,43 @@
 # Visual Product Matcher
 
-AI-powered fashion similarity search with two runnable interfaces:
-- FastAPI + HTML/CSS/JS UI (templates/static) for Render deployment
-- Streamlit UI (`app.py`) for Streamlit deployment
+Visual Product Matcher is an AI-powered fashion retrieval project that finds visually similar products from outfit or single-item images.
 
-The system is designed to work with a 44k-image embeddings dataset.
+It supports two interfaces in the same codebase:
+- FastAPI + HTML/CSS/JS frontend
+- Streamlit app
 
-## What Was Cleaned For Deployment
+The retrieval pipeline uses FashionCLIP embeddings with FAISS nearest-neighbor search over a 44k-item index.
 
-This repository was cleaned to keep runtime files only:
-- Removed non-runtime test files and test artifacts.
-- Added stricter ignore rules for local caches and tooling artifacts.
-- Added `render.yaml` for one-click Render setup.
+## Features
+
+- Single item similarity search from upload or image URL
+- Full outfit analysis (top, bottom, shoes)
+- Per-category search results for detected outfit regions
+- Outfit completion recommendations
+- FastAPI endpoints for integration with custom frontends
+- Local 44k index support for faster runtime
+
+## Tech Stack
+
+- Python, FastAPI, Streamlit
+- FashionCLIP (`patrickjohncyh/fashion-clip`)
+- FAISS (cosine similarity over normalized vectors)
+- YOLOv8 (`ultralytics`) for outfit-region detection
+- Hugging Face Datasets for index storage/loading
 
 ## Project Structure
 
-- `main.py`: FastAPI backend and HTML/CSS/JS UI server
-- `templates/`, `static/`: Production UI assets
-- `app.py`: Streamlit app
-- `build_local_index.py`: Build 44k local embeddings index
-- `upload_ds.py`: Push embeddings dataset to Hugging Face Hub
-- `services/`, `detection/`: Outfit analysis and recommendation logic
-- `render.yaml`: Render deployment config
+- `main.py`: FastAPI application and API routes
+- `templates/`, `static/`: HTML/CSS/JS frontend
+- `app.py`: Streamlit app interface
+- `services/outfit_search.py`: outfit analysis orchestration
+- `services/recommendation.py`: outfit recommendation logic
+- `detection/outfit_detector.py`: detection + category zoning
+- `build_local_index.py`: builds local 44k embeddings index
+- `upload_ds.py`: uploads embeddings dataset to Hugging Face
+- `img/styles.csv`: metadata used for enrichment/recommendations
 
-## Local Run
-
-### 1. Setup
+## Setup
 
 ```bash
 python -m venv .venv
@@ -33,106 +45,66 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. FastAPI + HTML UI
+## Run
+
+### FastAPI + HTML UI
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Open: `http://localhost:8000`
+Open `http://localhost:8000`
 
-### 3. Streamlit UI
+### Streamlit
 
 ```bash
 streamlit run app.py
 ```
 
-Open: `http://localhost:8501`
+Open `http://localhost:8501`
 
-## 44k Dataset Strategy (Recommended)
+## Data and Index
 
-Do **not** commit local `cache/` to GitHub.
+The system can run with:
+- Local index at `cache/fashion_index`
+- Remote embeddings dataset from Hugging Face
 
-Use one of these options:
+If local index does not exist, the app falls back to Hugging Face dataset loading.
 
-### Option A (best for deployment): host embeddings on Hugging Face Dataset
+Environment variable:
 
-1. Build local 44k embeddings once:
+```bash
+EMBEDDINGS_DATASET_REPO=<your_hf_dataset_repo>
+```
+
+### Build local 44k index
 
 ```bash
 python build_local_index.py
 ```
 
-2. Push to your HF dataset repo:
+Quick test build:
 
 ```bash
-python -c "from datasets import load_from_disk; ds=load_from_disk('cache/fashion_index'); ds.push_to_hub('YOUR_HF_USERNAME/fashion-products-embeddings-44k')"
+python build_local_index.py --limit 500
 ```
 
-3. Set env var in deployment:
+## API Overview
 
-- `EMBEDDINGS_DATASET_REPO=YOUR_HF_USERNAME/fashion-products-embeddings-44k`
+- `GET /`: frontend home
+- `GET /health`: service health
+- `GET /api-status`: component status
+- `POST /recommend/`: similarity search from uploaded file
+- `POST /recommend-url/`: similarity search from image URL
+- `POST /outfit-analysis/`: outfit analysis from uploaded file
+- `POST /outfit-analysis-url/`: outfit analysis from image URL
 
-The app auto-loads this repo when local cache is absent.
+## Notes
 
-### Option B: local cache only
-
-Keep `cache/fashion_index` only on your machine/server. Not suitable for ephemeral free hosts.
-
-## Deploy To Render (Free) - HTML/CSS/JS UI
-
-This deploys your **FastAPI + templates/static UI**.
-
-### Steps
-
-1. Push this repo to GitHub.
-2. In Render: New -> Web Service -> Connect repo.
-3. Render reads `render.yaml` automatically.
-4. Set environment variable in Render dashboard:
-   - `EMBEDDINGS_DATASET_REPO=YOUR_HF_USERNAME/fashion-products-embeddings-44k`
-5. Deploy.
-
-### Runtime details
-
-- Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Free tier may sleep when idle.
-- Cold start can be slow due to model/index loading.
-
-## Deploy To Streamlit Community Cloud (Free)
-
-This deploys the **Streamlit UI** (`app.py`).
-
-### Steps
-
-1. Push repo to GitHub.
-2. In Streamlit Cloud: New app.
-3. Set:
-   - Main file path: `app.py`
-4. In app settings -> Secrets / environment:
-   - `EMBEDDINGS_DATASET_REPO="YOUR_HF_USERNAME/fashion-products-embeddings-44k"`
-5. Deploy.
-
-## Important Free-Tier Notes
-
-- Free deployments are usually ephemeral and can sleep.
-- Avoid rebuilding 44k index on each boot.
-- Always host embeddings in a remote dataset repo for reliable startup.
-
-## Recommended Production-Like Setup (Still Free)
-
-- GitHub: source code
-- Hugging Face Dataset: 44k embeddings repo
-- Render (or Streamlit Cloud): app runtime
-- Env var: `EMBEDDINGS_DATASET_REPO`
-
-## Quick Deployment Checklist
-
-1. `cache/` is ignored in `.gitignore`.
-2. 44k embeddings pushed to HF dataset repo.
-3. `EMBEDDINGS_DATASET_REPO` configured in host.
-4. App starts and `/health` is healthy.
-5. URL mode and upload mode both tested in UI.
+- The local `cache/` index is intentionally ignored by git.
+- First startup may be slower due to model/index loading.
+- URL-based analysis is handled server-side for better reliability.
 
 ## License
 
-MIT (see `LICENSE`).
+MIT. See `LICENSE`.
