@@ -78,7 +78,19 @@ htmlcov/
 .coverage.*
 coverage.xml
 *.cover
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # ── Documentation builds ──────────────────────────────────────────────────────
 docs/_build/
 site/
+
+# ── Runtime/service artifacts ─────────────────────────────────────────────────
+*.pid
+*.out
+uvicorn.log
+
+# ── Hugging Face local caches ─────────────────────────────────────────────────
+.huggingface/
+hf_home/

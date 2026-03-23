@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: visual-product-matcher
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: EMBEDDINGS_DATASET_REPO
+        sync: false
+      - key: HF_HOME
+        value: /opt/render/.cache/huggingface

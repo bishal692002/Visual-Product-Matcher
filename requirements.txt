@@ -28,3 +28,7 @@ scikit-learn>=1.4.0
 # ── Utilities ─────────────────────────────────────────────────────────────────
 requests>=2.31.0
 tqdm>=4.66.0
+
+# ── Object Detection & Outfit Analysis ──────────────────────────────────────
+ultralytics>=8.1.0      # YOLOv8 for clothing item detection
+opencv-python>=4.8.0    # Image processing & visualization for detection boxes

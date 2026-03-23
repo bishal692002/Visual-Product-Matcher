@@ -5,7 +5,7 @@ Builds a 20K+ fashion-product embeddings dataset on HuggingFace Hub.
 
 Source  : ashraq/fashion-product-images-small  (~44 K images, same metadata
           schema as the original Kaggle Fashion Product Images dataset)
-Embeds  : google/vit-base-patch16-224  (ViT-Base, 768-dim CLS token)
+Embeds  : patrickjohncyh/fashion-clip (768-dim pooler output)
 Output  : <HF_USERNAME>/fashion-products-embeddings   (embeddings + metadata)
 
 Usage:
@@ -94,16 +94,16 @@ if "image" not in dataset.column_names:
 # ---------------------------------------------------------------------------
 
 def embed_batch(batch):
-    """Embed a batch of PIL images with FashionCLIP; returns L2-normalised 512-dim vectors."""
+    """Embed a batch of PIL images with FashionCLIP; returns L2-normalised 768-dim vectors."""
     images = [img.convert("RGB") for img in batch["image"]]
     inputs = processor(images=images, return_tensors="pt", padding=True)
     inputs = {k: v.to(device) for k, v in inputs.items()}
 
     with torch.no_grad():
         vision_out = model.vision_model(pixel_values=inputs["pixel_values"])
-        cls_vectors = model.visual_projection(vision_out.pooler_output)  # (B, 512)
+        cls_vectors = vision_out.pooler_output  # (B, 768)
 
-    cls_vectors = cls_vectors.cpu().numpy().astype("float32")   # (B, 512)
+    cls_vectors = cls_vectors.cpu().numpy().astype("float32")   # (B, 768)
 
     # L2 normalise so inner-product == cosine similarity in FAISS
     norms = np.linalg.norm(cls_vectors, axis=1, keepdims=True)

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Visual Product Matcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="#">Visual Product Matcher</a>
+      <nav class="top-nav">
+        <a href="#tool">Tool</a>
+        <a href="#results">Results</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <p class="eyebrow">AI Product Discovery</p>
+        <h1>Find Similar Products Instantly</h1>
+        <p class="hero-subtitle">
+          Upload an image and discover visually similar fashion items.
+        </p>
+      </div>
+    </section>
+
+    <section id="tool" class="tool-section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Try the matcher</h2>
+          <p>Switch modes between single product search and full outfit analysis.</p>
+        </div>
+
+        <div class="mode-switch card" role="tablist" aria-label="Analysis mode">
+          <button class="mode-btn is-active" id="modeSingle" data-mode="single" type="button">Single Item Search</button>
+          <button class="mode-btn" id="modeOutfit" data-mode="outfit" type="button">Full Outfit Analysis</button>
+        </div>
+
+        <div class="tool-shell">
+          <div class="tool-left card">
+            <form method="post" enctype="multipart/form-data" id="searchForm">
+              <div class="input-mode-switch" role="tablist" aria-label="Input mode">
+                <button class="input-mode-btn is-active" id="inputModeUpload" data-input-mode="upload" type="button">Upload Image</button>
+                <button class="input-mode-btn" id="inputModeUrl" data-input-mode="url" type="button">Image URL</button>
+              </div>
+
+              <label for="imageInput" class="upload-box" id="uploadBox">
+                <input id="imageInput" name="file" type="file" accept="image/*" required />
+                <span class="upload-title">Drag &amp; Drop or Click to Upload</span>
+                <span class="upload-subtitle">PNG, JPG, JPEG</span>
+              </label>
+
+              <div class="form-group is-hidden" id="imageUrlGroup">
+                <label for="imageUrlInput">Image URL</label>
+                <input id="imageUrlInput" name="image_url" type="url" placeholder="https://example.com/product.jpg" />
+              </div>
+
+              <div class="form-group">
+                <label for="textHint">Description (optional)</label>
+                <input id="textHint" name="text_hint" type="text" placeholder="e.g. red tshirt, black sneakers" />
+              </div>
+
+              <button class="btn btn-primary btn-full" type="submit" id="runSearchBtn">Find Similar Products</button>
+            </form>
+          </div>
+
+          <aside class="tool-right card">
+            <div class="preview-wrap">
+              <p class="preview-label">Image Preview</p>
+              <div class="preview-frame">
+                <div id="previewPlaceholder" class="preview-empty">
+                  <span class="preview-empty-icon" aria-hidden="true">▣</span>
+                  <p>Image preview will appear here after upload</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-grid">
+              <div class="form-group compact">
+                <label for="minSimilarity">Min Similarity</label>
+                <input id="minSimilarity" name="min_similarity" type="number" min="0" max="100" value="0" />
+              </div>
+              <div class="form-group compact">
+                <label for="maxResults">Results</label>
+                <input id="maxResults" name="num_results" type="number" min="4" max="12" value="8" />
+              </div>
+            </div>
+
+            <div class="status-box" id="statusBox" aria-live="polite"></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="results-section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Top matches</h2>
+          <p>Clean product cards with image-first hierarchy.</p>
+        </div>
+
+        <div class="results-grid" id="singleResultsGrid">
+          <div class="empty-results card" id="emptySingleResults">
+            <p>No products yet. Upload an image and click <strong>Find Similar Products</strong>.</p>
+          </div>
+        </div>
+
+        <div class="outfit-results is-hidden" id="outfitResults">
+          <div class="outfit-summary card" id="outfitSummary"></div>
+          <div class="detected-items" id="detectedItems"></div>
+          <div class="outfit-recommendations card" id="outfitRecommendations"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', path='js/app.js') }}"></script>
+</body>
+</html>
